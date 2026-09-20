@@ -130,6 +130,31 @@ done
 command -v "$awk_bin" >/dev/null 2>&1 || die "no awk found (tried '$awk_bin')"
 AWK_LIB=$(find_awk_lib)
 
+# Is this command able to list datasets? Bounded when a timeout command is
+# available and there is no terminal: an unprivileged zfs can block rather than
+# refuse, and a privilege helper can sit on a password prompt regardless of its
+# non-interactive flag. Either way, hanging forever in a script is the one
+# outcome worth ruling out.
+# Can this user open the control device at all? Asked before running an
+# unprivileged zfs, because on a machine where the answer is no, zfs can block
+# in the kernel rather than return: the process then ignores even SIGKILL and
+# lingers until the call returns. A permission check costs nothing and avoids
+# provoking that entirely. Where the device is not a visible node, fall through
+# and let the command itself answer.
+can_reach_zfs_device() {
+	[ -e /dev/zfs ] || return 0
+	[ -r /dev/zfs ] && [ -w /dev/zfs ]
+}
+
+try_zfs() {
+	if [ -t 0 ] || ! command -v timeout >/dev/null 2>&1; then
+		"$@" list -H -o name >/dev/null 2>&1
+	else
+		# -k: SIGTERM may be ignored while a password prompt is waiting.
+		timeout -k 5 15 "$@" list -H -o name >/dev/null 2>&1
+	fi
+}
+
 # Reaching zfs: prefer running it unprivileged, since `zfs allow` delegation and
 # some platforms make that work. Only escalate when it actually fails.
 ZFS=zfs
@@ -139,10 +164,15 @@ command -v zfs >/dev/null 2>&1 || die "zfs command not found"
 case $privilege in
 none) ;;
 auto)
-	if ! zfs list -H -o name >/dev/null 2>&1; then
+	if ! can_reach_zfs_device || ! try_zfs zfs; then
+		# Without a terminal there is nobody to type a password, so ask the
+		# helper not to prompt. Failing with a message beats hanging forever
+		# in a script, a cron job or a pipeline.
+		_n=""
+		[ -t 0 ] || _n=" -n"
 		for _c in doas sudo; do
 			if command -v "$_c" >/dev/null 2>&1; then
-				ZFS="$_c zfs"; ZPOOL="$_c zpool"; break
+				ZFS="$_c$_n zfs"; ZPOOL="$_c$_n zpool"; break
 			fi
 		done
 	fi
@@ -154,8 +184,13 @@ auto)
 	;;
 esac
 
-$ZFS list -H -o name >/dev/null 2>&1 ||
-	die "cannot run zfs (try --privilege sudo, or 'zfs allow' delegation)"
+# shellcheck disable=SC2086 # $ZFS may carry a privilege helper and its flags
+if ! try_zfs $ZFS; then
+	if [ -t 0 ]; then
+		die "cannot run zfs (try --privilege sudo, or 'zfs allow' delegation)"
+	fi
+	die "cannot run zfs without a terminal to authenticate on; run as root, grant access with 'zfs allow', or pass --privilege with a helper that needs no password"
+fi
 
 if [ $# -eq 0 ]; then
 	# Pool names cannot contain whitespace, so splitting the list is safe.
