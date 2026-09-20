@@ -54,8 +54,15 @@ jobs:
         run: |
           set -eux
           mkdir -p dist
-          # apk first: this tool's home platform.
+          # apk first: this tool's home platform. Each packager spells
+          # "architecture independent" its own way, and apk rejects a package
+          # whose arch it does not recognise, so the name is set per format.
           for packager in apk deb rpm archlinux; do
+            case $packager in
+            apk | rpm) export PKG_ARCH=noarch ;;
+            deb) export PKG_ARCH=all ;;
+            archlinux) export PKG_ARCH=any ;;
+            esac
             nfpm package --config packaging/nfpm.yaml --packager "$packager" --target dist/
           done
           ls -l dist
@@ -71,7 +78,7 @@ jobs:
       - name: Checksums
         run: cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
 
-      - name: Smoke-test the packages
+      - name: Smoke-test the deb
         run: |
           set -eux
           sudo dpkg -i dist/*.deb
@@ -82,6 +89,37 @@ jobs:
           # layout, not a path relative to a checkout.
           test -r /usr/share/zfs-ncdu/zfs-ncdu.awk
           sudo dpkg -r zfs-ncdu
+
+      - name: Smoke-test the apk on Alpine
+        run: |
+          set -eux
+          docker run --rm -v "$PWD/dist:/dist" alpine:latest sh -eux -c '
+            apk add --no-cache --allow-untrusted /dist/*.apk
+            zfs-ncdu --version
+            zfs-ncdu --help > /dev/null
+            test -r /usr/share/zfs-ncdu/zfs-ncdu.awk
+            # Without a pool there is nothing to report, and that is the
+            # error the tool should give rather than a crash.
+            zfs-ncdu 2>&1 | grep -q "zfs command not found"
+          '
+
+      - name: Smoke-test the rpm on Fedora
+        run: |
+          set -eux
+          docker run --rm -v "$PWD/dist:/dist" fedora:latest sh -eux -c '
+            rpm -i /dist/*.rpm
+            zfs-ncdu --version
+            test -r /usr/share/zfs-ncdu/zfs-ncdu.awk
+          '
+
+      - name: Smoke-test the pacman package on Arch
+        run: |
+          set -eux
+          docker run --rm -v "$PWD/dist:/dist" archlinux:latest sh -eux -c '
+            pacman -U --noconfirm /dist/*.pkg.tar.zst
+            zfs-ncdu --version
+            test -r /usr/share/zfs-ncdu/zfs-ncdu.awk
+          ' 
 
       - uses: actions/upload-artifact@v4
         with:
