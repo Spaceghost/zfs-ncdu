@@ -158,6 +158,8 @@ $ZFS list -H -o name >/dev/null 2>&1 ||
 	die "cannot run zfs (try --privilege sudo, or 'zfs allow' delegation)"
 
 if [ $# -eq 0 ]; then
+	# Pool names cannot contain whitespace, so splitting the list is safe.
+	# shellcheck disable=SC2046
 	set -- $($ZPOOL list -H -o name)
 	[ $# -gt 0 ] || die "no pools imported"
 fi
@@ -197,9 +199,11 @@ done
 # would not do: '-' sorts before '/', so pool/data-old would land between
 # pool/data and pool/data/child and break the nesting. Sorting on the name with
 # separators replaced by \001 (below every name character) restores the order.
+# The comparison must be limited to that key: the tab that follows it sorts
+# above \001, which would otherwise push a parent behind its own children.
 sorted=$TMPDIR_RUN/sorted.tsv
 "$awk_bin" -F'\t' '{ k = $1; gsub(/\//, "\001", k); print k "\t" $0 }' "$sets" |
-	LC_ALL=C sort |
+	LC_ALL=C sort -t "$(printf '\t')" -k1,1 |
 	cut -f2- > "$sorted"
 
 rootname=zfs

@@ -1,0 +1,133 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to build packages for (no leading v)
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  NFPM_VERSION: '2.41.1'
+
+jobs:
+  packages:
+    name: distro packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Work out the version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = workflow_dispatch ]; then
+            version='${{ inputs.version }}'
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          declared=$(sed -n 's/^VERSION=//p' bin/zfs-ncdu)
+          if [ "$declared" != "$version" ]; then
+            echo "bin/zfs-ncdu declares $declared but the tag says $version" >&2
+            exit 1
+          fi
+
+      - name: Install nfpm, verifying its checksum
+        run: |
+          set -eux
+          base="https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}"
+          tarball="nfpm_${NFPM_VERSION}_Linux_x86_64.tar.gz"
+          curl -fsSLO "$base/$tarball"
+          curl -fsSLO "$base/checksums.txt"
+          grep " $tarball\$" checksums.txt | sha256sum -c -
+          tar -xzf "$tarball" nfpm
+          sudo install -m 0755 nfpm /usr/local/bin/nfpm
+
+      - name: Build apk, deb, rpm and pacman packages
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -eux
+          mkdir -p dist
+          # apk first: this tool's home platform.
+          for packager in apk deb rpm archlinux; do
+            nfpm package --config packaging/nfpm.yaml --packager "$packager" --target dist/
+          done
+          ls -l dist
+
+      - name: Build the source tarball
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -eux
+          git archive --format=tar.gz --prefix "zfs-ncdu-${VERSION}/" \
+            -o "dist/zfs-ncdu-${VERSION}.tar.gz" HEAD
+
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
+
+      - name: Smoke-test the packages
+        run: |
+          set -eux
+          sudo dpkg -i dist/*.deb
+          zfs-ncdu --version
+          zfs-ncdu --help > /dev/null
+          man --warnings -l /usr/share/man/man1/zfs-ncdu.1 > /dev/null
+          # The installed copy must find its awk library through the packaged
+          # layout, not a path relative to a checkout.
+          test -r /usr/share/zfs-ncdu/zfs-ncdu.awk
+          sudo dpkg -r zfs-ncdu
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: dist/
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+
+  nix:
+    name: nix build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: experimental-features = nix-command flakes
+      - run: nix flake check --no-write-lock-file
+      - run: nix build --no-write-lock-file --print-build-logs
+      - name: The built package must run
+        run: ./result/bin/zfs-ncdu --version
+
+  icons:
+    name: render icons
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y librsvg2-bin
+      - name: Rasterise the icon at the usual sizes
+        run: |
+          set -eux
+          mkdir -p dist/icons
+          for size in 16 32 48 64 128 256 512; do
+            rsvg-convert -w "$size" -h "$size" doc/icon.svg \
+              -o "dist/icons/zfs-ncdu-${size}.png"
+          done
+          ls -l dist/icons
+      - uses: actions/upload-artifact@v4
+        with:
+          name: icons
+          path: dist/icons/
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/icons/* --clobber

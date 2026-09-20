@@ -32,7 +32,7 @@ check_contains() {
 # Sort fixture rows the way bin/zfs-ncdu does before handing them to the awk.
 generate() { # generate <datasets.tsv> <snapshots.tsv> [rootname]
 	$AWK -F'\t' '{ k = $1; gsub(/\//, "\001", k); print k "\t" $0 }' "$1" |
-		LC_ALL=C sort | cut -f2- > "$tmp/sorted.tsv"
+		LC_ALL=C sort -t "$(printf '\t')" -k1,1 | cut -f2- > "$tmp/sorted.tsv"
 	$AWK -v ts=1 -v version=test -v snapfile="$2" -v rootname="${3:-zfs}" \
 		-f "$lib" "$tmp/sorted.tsv"
 }
@@ -97,6 +97,15 @@ printf 'unlisted ancestors\n'
 out=$(generate "$fixtures/orphan.datasets.tsv" "$fixtures/empty.snapshots.tsv" tank/deep/nested)
 check_eq "totals match" "$(total_dsize "$out")" "$(expected_total "$fixtures/orphan.datasets.tsv")"
 check_eq "brackets balanced" "$(balanced "$out")" "balanced"
+
+printf 'tree shape\n'
+out=$(generate "$fixtures/nesting.datasets.tsv" "$fixtures/nesting.snapshots.tsv" tank)
+# The root dataset's row sorts after its own children unless the sort key is
+# compared on its own: the tab delimiter sorts above the \001 separator. When
+# that happened the root was emitted a second time, as an empty child.
+roots=$(printf '%s' "$out" | grep -o '"name":"tank"' | wc -l | tr -d ' ')
+check_eq "root appears exactly once" "$roots" "1"
+check_eq "root heads the tree" "$(printf '%s' "$out" | sed -n '2p')" '[{"name":"tank","asize":0,"dsize":0},'
 
 printf 'export validity\n'
 out=$(generate "$fixtures/nesting.datasets.tsv" "$fixtures/nesting.snapshots.tsv" tank)

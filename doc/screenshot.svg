@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="817" height="232" viewBox="0 0 817 232" role="img" aria-label="zfs-ncdu tank">
+  <style>
+    text { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace; font-size: 14px; white-space: pre; }
+    .bg { fill: #10141a; }
+    .chrome { fill: #1b2029; }
+    .title { fill: #7c8797; font-size: 12px; }
+    .dot1 { fill: #ff5f57; } .dot2 { fill: #febc2e; } .dot3 { fill: #28c840; }
+    .headbar { fill: #2a68d8; }
+    .head { fill: #eef2f8; }
+    .path { fill: #6fa8ff; font-weight: 600; }
+    .rule { fill: #3d4859; }
+    .size { fill: #d7dee8; }
+    .graph { fill: #4ade80; }
+    .graphdim { fill: #3a5a4b; }
+    .dir { fill: #6fa8ff; }
+    .special { fill: #d9a441; }
+    .file { fill: #aab4c2; }
+    .footbar { fill: #1b2029; }
+    .foot { fill: #9aa5b4; }
+  </style>
+  <defs><filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+    <feDropShadow dx="0" dy="2" stdDeviation="6" flood-color="#000" flood-opacity="0.35"/>
+  </filter></defs>
+  <g filter="url(#shadow)">
+  <rect class="bg" x="0.5" y="0.5" width="816" height="231" rx="10" stroke="#39424f" stroke-width="1"/>
+  <path class="chrome" d="M0 10a10 10 0 0 1 10-10h797 a10 10 0 0 1 10 10v20H0z"/>
+  <circle class="dot1" cx="18" cy="15" r="5"/>
+  <circle class="dot2" cx="36" cy="15" r="5"/>
+  <circle class="dot3" cx="54" cy="15" r="5"/>
+  <text class="title" x="408" y="19" text-anchor="middle">zfs-ncdu tank</text>
+  </g>
+  <rect class="headbar" x="16.00" y="47.00" width="784.80" height="20.30"/>
+  <text class="head" x="22.00" y="59.23" textLength="772.80" lengthAdjust="spacingAndGlyphs" xml:space="preserve">ncdu 1.22 ~ Use the arrow keys to navigate, press ? for help                      [imported]</text>
+  <text class="rule" x="22.00" y="79.53" textLength="25.20" lengthAdjust="spacingAndGlyphs" xml:space="preserve">---</text>
+  <text class="path" x="55.60" y="79.53" textLength="33.60" lengthAdjust="spacingAndGlyphs" xml:space="preserve">tank</text>
+  <text class="rule" x="89.20" y="79.53" textLength="705.60" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> -----------------------------------------------------------------------------------</text>
+  <text class="size" x="22.00" y="99.82" textLength="100.80" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  640.0 GiB </text>
+  <text class="graphdim" x="122.80" y="99.82" textLength="8.40" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[</text>
+  <text class="graph" x="131.20" y="99.82" textLength="109.20" lengthAdjust="spacingAndGlyphs" xml:space="preserve">#############</text>
+  <text class="graphdim" x="240.40" y="99.82" textLength="8.40" lengthAdjust="spacingAndGlyphs" xml:space="preserve">]</text>
+  <text class="dir" x="248.80" y="99.82" textLength="75.60" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> /backups</text>
+  <text class="size" x="22.00" y="120.12" textLength="100.80" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  316.0 GiB </text>
+  <text class="graphdim" x="122.80" y="120.12" textLength="8.40" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[</text>
+  <text class="graph" x="131.20" y="120.12" textLength="50.40" lengthAdjust="spacingAndGlyphs" xml:space="preserve">######</text>
+  <text class="graphdim" x="240.40" y="120.12" textLength="8.40" lengthAdjust="spacingAndGlyphs" xml:space="preserve">]</text>
+  <text class="dir" x="248.80" y="120.12" textLength="50.40" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> /home</text>
+  <text class="size" x="22.00" y="140.43" textLength="100.80" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  230.0 GiB </text>
+  <text class="graphdim" x="122.80" y="140.43" textLength="8.40" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[</text>
+  <text class="graph" x="131.20" y="140.43" textLength="33.60" lengthAdjust="spacingAndGlyphs" xml:space="preserve">####</text>
+  <text class="graphdim" x="240.40" y="140.43" textLength="8.40" lengthAdjust="spacingAndGlyphs" xml:space="preserve">]</text>
+  <text class="dir" x="248.80" y="140.43" textLength="33.60" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> /vm</text>
+  <text class="size" x="22.00" y="160.72" textLength="100.80" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  136.0 GiB </text>
+  <text class="graphdim" x="122.80" y="160.72" textLength="8.40" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[</text>
+  <text class="graph" x="131.20" y="160.72" textLength="16.80" lengthAdjust="spacingAndGlyphs" xml:space="preserve">##</text>
+  <text class="graphdim" x="240.40" y="160.72" textLength="8.40" lengthAdjust="spacingAndGlyphs" xml:space="preserve">]</text>
+  <text class="dir" x="248.80" y="160.72" textLength="58.80" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> /media</text>
+  <text class="size" x="22.00" y="181.03" textLength="100.80" lengthAdjust="spacingAndGlyphs" xml:space="preserve">   30.0 GiB </text>
+  <text class="graphdim" x="122.80" y="181.03" textLength="8.40" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[</text>
+  <text class="graphdim" x="240.40" y="181.03" textLength="8.40" lengthAdjust="spacingAndGlyphs" xml:space="preserve">]</text>
+  <text class="dir" x="248.80" y="181.03" textLength="126.00" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> /media-archive</text>
+  <rect class="footbar" x="16.00" y="189.10" width="784.80" height="20.30"/>
+  <text class="foot" x="22.00" y="201.32" textLength="562.80" lengthAdjust="spacingAndGlyphs" xml:space="preserve">*Total disk usage:   1.3 TiB   Apparent size:   1.9 TiB   Items: 29</text>
+</svg>

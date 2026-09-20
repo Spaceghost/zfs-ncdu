@@ -1,17 +1,16 @@
-# zfs-ncdu
+<h1>
+  <img src="doc/icon.svg" alt="" width="72" height="72" align="left">
+  zfs-ncdu
+</h1>
 
 Browse ZFS space accounting in [ncdu](https://dev.yorhel.nl/ncdu).
 
-```
-$ zfs-ncdu tank
---- tank -------------------------------------------------------------
-  722.4 GiB [##########################] /backups
-  326.8 GiB [###########               ] /archive
-  100.6 GiB [###                       ] /home
-   35.0 GiB [#                         ] /vm
-    1.9 GiB [                          ] /images
-   96.0 KiB [                          ]  [data]
-```
+[![ci](https://github.com/Spaceghost/zfs-ncdu/actions/workflows/ci.yml/badge.svg)](https://github.com/Spaceghost/zfs-ncdu/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+<br clear="left">
+
+![zfs-ncdu showing a pool](doc/screenshot.svg)
 
 ## Why
 
@@ -47,8 +46,34 @@ uncompressed view of the same tree.
 
 ## Install
 
-Requires `zfs`, any POSIX `awk` (tested against gawk and busybox awk), and
-`ncdu` to view the result.
+Packages for every release are attached to the
+[latest release](https://github.com/Spaceghost/zfs-ncdu/releases/latest):
+`.apk`, `.deb`, `.rpm` and `.pkg.tar.zst`, all architecture independent,
+with a `SHA256SUMS` beside them.
+
+```sh
+# Alpine
+apk add --allow-untrusted zfs-ncdu_0.1.0_all.apk
+
+# Debian, Ubuntu
+sudo dpkg -i zfs-ncdu_0.1.0_all.deb
+
+# Fedora, RHEL, openSUSE
+sudo rpm -i zfs-ncdu-0.1.0.noarch.rpm
+
+# Arch
+sudo pacman -U zfs-ncdu-0.1.0-any.pkg.tar.zst
+```
+
+With Nix:
+
+```sh
+nix run github:Spaceghost/zfs-ncdu          # run it once
+nix profile install github:Spaceghost/zfs-ncdu
+```
+
+Or from source. It needs `zfs`, any POSIX `awk` (tested against gawk, mawk,
+original-awk and busybox awk) and `ncdu` to view the result:
 
 ```sh
 git clone https://github.com/Spaceghost/zfs-ncdu
@@ -57,9 +82,10 @@ make check          # run the test suite; needs no pools and no privileges
 sudo make install   # PREFIX=/usr/local by default
 ```
 
-`make install` honours `DESTDIR` and `PREFIX` for packaging. The script also
-runs straight from a checkout: `./bin/zfs-ncdu` finds its awk library relative
-to itself.
+`make install` honours `DESTDIR` and `PREFIX`, and `packaging/` carries an
+`APKBUILD`, a `PKGBUILD` and the nfpm definition used to build the releases.
+The script also runs straight from a checkout: `./bin/zfs-ncdu` finds its awk
+library relative to itself, through symlinks.
 
 ## Usage
 
@@ -92,6 +118,8 @@ for a dataset equals its `USED`. The test suite asserts this on every fixture.
 
 Two subtleties are worth knowing, because they are where naive versions of this
 tool go wrong:
+
+![zfs-ncdu showing snapshots, including space shared between them](doc/snapshots.svg)
 
 **Snapshots share space.** A snapshot's own `USED` counts only the blocks
 unique to it. Blocks held jointly by several snapshots are charged to none of
@@ -131,8 +159,18 @@ make check              # or: ./tests/run.sh
 ```
 
 The suite runs on recorded `zfs list` output, so it needs no pools and no root.
-It asserts that emitted totals match ZFS accounting, that the JSON parses and
-that ncdu imports it, when `python3` and `ncdu` are available.
+It asserts that emitted totals match ZFS accounting, that the tree keeps its
+shape, that the JSON parses and that ncdu imports it, when `python3` and `ncdu`
+are available.
+
+CI runs it under gawk, mawk, original-awk and busybox awk, on Ubuntu and on
+Alpine, alongside shellcheck. A further job builds a real file-backed pool with
+snapshots and asserts that the totals match what `zfs list` reports, which is
+the property the whole tool rests on.
+
+The images in this README are rendered from real ncdu output by
+`doc/tools/term2svg.awk`, against the demo export in `doc/demo`, so they cannot
+drift from what the tool actually draws.
 
 ## License
 

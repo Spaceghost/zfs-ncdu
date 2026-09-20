@@ -1,0 +1,62 @@
+# nfpm configuration: one description of the package, built for every format.
+# https://nfpm.goreleaser.com
+name: zfs-ncdu
+arch: all
+platform: linux
+version: ${VERSION}
+section: admin
+priority: optional
+maintainer: Johnneylee Jack Rollins <johnneylee.rollins@gmail.com>
+description: |
+  Browse ZFS space accounting in ncdu.
+  Renders ZFS dataset, snapshot and reservation accounting into ncdu's JSON
+  export format and opens it with ncdu, showing space that a directory walk
+  cannot see: snapshots, compression and reservations.
+vendor: Johnneylee Jack Rollins
+homepage: https://github.com/Spaceghost/zfs-ncdu
+license: MIT
+
+contents:
+  - src: bin/zfs-ncdu
+    dst: /usr/bin/zfs-ncdu
+    file_info:
+      mode: 0755
+  - src: lib/zfs-ncdu.awk
+    dst: /usr/share/zfs-ncdu/zfs-ncdu.awk
+  - src: doc/zfs-ncdu.1
+    dst: /usr/share/man/man1/zfs-ncdu.1
+  - src: README.md
+    dst: /usr/share/doc/zfs-ncdu/README.md
+  - src: LICENSE
+    dst: /usr/share/doc/zfs-ncdu/LICENSE
+
+overrides:
+  deb:
+    depends:
+      - mawk | gawk | original-awk
+    recommends:
+      - ncdu
+      - zfsutils-linux
+  rpm:
+    depends:
+      - awk
+    recommends:
+      - ncdu
+      - zfs
+  apk:
+    depends:
+      - busybox
+    recommends:
+      - ncdu
+      - zfs
+  archlinux:
+    depends:
+      - awk
+    recommends:
+      - ncdu
+      - zfs-utils
+
+rpm:
+  group: Applications/System
+archlinux:
+  packager: Johnneylee Jack Rollins <johnneylee.rollins@gmail.com>

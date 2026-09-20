@@ -1,0 +1,21 @@
+# Contributor: Johnneylee Jack Rollins <johnneylee.rollins@gmail.com>
+# Maintainer: Johnneylee Jack Rollins <johnneylee.rollins@gmail.com>
+pkgname=zfs-ncdu
+pkgver=0.1.0
+pkgrel=0
+pkgdesc="Browse ZFS space accounting in ncdu"
+url="https://github.com/Spaceghost/zfs-ncdu"
+arch="noarch"
+license="MIT"
+depends="busybox"
+checkdepends="ncdu python3"
+subpackages="$pkgname-doc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/Spaceghost/zfs-ncdu/archive/refs/tags/v$pkgver.tar.gz"
+
+check() {
+	./tests/run.sh
+}
+
+package() {
+	make install PREFIX=/usr DESTDIR="$pkgdir"
+}

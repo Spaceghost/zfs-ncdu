@@ -1,0 +1,83 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shell:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - run: shellcheck bin/zfs-ncdu tests/run.sh
+
+  awk:
+    name: tests (${{ matrix.awk }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        awk: [gawk, mawk, original-awk, busybox awk]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install awk implementations
+        run: sudo apt-get update && sudo apt-get install -y gawk mawk original-awk busybox ncdu
+      - run: ./tests/run.sh "${{ matrix.awk }}"
+
+  alpine:
+    name: tests (alpine, busybox awk)
+    runs-on: ubuntu-latest
+    container: alpine:latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: apk add --no-cache ncdu python3
+      - name: Tests under busybox awk, as shipped
+        run: ./tests/run.sh
+      - name: Tests under gawk
+        run: |
+          apk add --no-cache gawk
+          ./tests/run.sh gawk
+
+  integration:
+    name: integration (real pool)
+    runs-on: ubuntu-latest
+    # Needs a loadable zfs module, which the runner image does not guarantee.
+    # A failure here is informative, not a gate on the unit tests above.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ZFS and ncdu
+        run: sudo apt-get update && sudo apt-get install -y zfsutils-linux ncdu
+      - name: Create a file-backed pool with snapshots
+        run: |
+          set -eux
+          sudo modprobe zfs
+          truncate -s 512M /tmp/vdev
+          sudo zpool create -m /mnt/citank citank /tmp/vdev
+          sudo zfs create citank/data
+          sudo dd if=/dev/urandom of=/mnt/citank/data/a bs=1M count=32
+          sudo zfs snapshot citank/data@one
+          sudo dd if=/dev/urandom of=/mnt/citank/data/b bs=1M count=32
+          sudo zfs snapshot citank/data@two
+          sudo rm /mnt/citank/data/a
+      - name: Totals must equal what ZFS reports
+        run: |
+          set -eux
+          ./bin/zfs-ncdu --privilege sudo -o /tmp/citank.ncdu citank
+          ncdu -f /tmp/citank.ncdu -o /dev/null
+          reported=$(tr ',' '\n' < /tmp/citank.ncdu |
+            sed -n 's/.*"dsize":\([0-9]*\).*/\1/p' | awk '{ s += $1 } END { print s }')
+          expected=$(sudo zfs list -r -H -p -o usedds,usedsnap,usedrefreserv citank |
+            awk '{ s += $1 + $2 + $3 } END { print s }')
+          echo "reported=$reported expected=$expected"
+          test "$reported" = "$expected"
+      - name: Tear down
+        if: always()
+        run: sudo zpool destroy citank || true
