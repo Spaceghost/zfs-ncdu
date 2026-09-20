@@ -39,7 +39,9 @@ overrides:
       - zfsutils-linux
   rpm:
     depends:
-      - awk
+      # A file dependency, so any awk provider satisfies it: Fedora's minimal
+      # image ships none, and the bare name "awk" is not provided everywhere.
+      - /usr/bin/awk
     recommends:
       - ncdu
       - zfs

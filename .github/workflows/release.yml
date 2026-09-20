@@ -107,7 +107,9 @@ jobs:
         run: |
           set -eux
           docker run --rm -v "$PWD/dist:/dist" fedora:latest sh -eux -c '
-            rpm -i /dist/*.rpm
+            # dnf rather than rpm -i, so the awk dependency is resolved the way
+            # it would be for a user installing the package.
+            dnf install -y --setopt=install_weak_deps=False /dist/*.rpm
             zfs-ncdu --version
             test -r /usr/share/zfs-ncdu/zfs-ncdu.awk
           '
