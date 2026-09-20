@@ -1,0 +1,118 @@
+.TH ZFS-NCDU 1 "2026-09-20" "zfs-ncdu 0.1.0" "User Commands"
+.SH NAME
+zfs\-ncdu \- browse ZFS space accounting in ncdu
+.SH SYNOPSIS
+.B zfs\-ncdu
+[\fIoptions\fR] [\fIdataset\fR|\fIpool\fR ...]
+.SH DESCRIPTION
+.B zfs\-ncdu
+renders ZFS dataset, snapshot and reservation accounting into
+.BR ncdu (1)'s
+JSON export format and opens it with the real
+.B ncdu
+binary.
+.PP
+Walking a directory tree cannot measure ZFS. Snapshots hold blocks that no live
+file references, compression means on-disk bytes differ from file sizes, and
+reservations consume space no file occupies. Those live in dataset properties,
+not in the filesystem namespace, so
+.BR du (1)
+and a plain
+.B ncdu
+scan of a mountpoint all miss them.
+.PP
+With no arguments every imported pool is included. Each dataset becomes a
+directory contributing no bytes of its own; its space appears as
+.IR [data] ,
+.IR [refreservation] ,
+and a
+.I [snapshots]
+directory holding one entry per snapshot. Disk size is bytes on disk; apparent
+size is the logical size they represent, so ncdu's
+.B a
+key toggles between compressed and uncompressed views.
+.SH OPTIONS
+.TP
+.BR \-d ", " \-\-depth " \fIN\fR"
+Recurse at most \fIN\fR levels below each argument, as in \fBzfs list \-d\fR.
+.TP
+.BR \-S ", " \-\-no\-snapshots
+Summarise snapshots as a single entry per dataset instead of listing each one.
+Faster on datasets with very many snapshots.
+.TP
+.BR \-o ", " \-\-output " \fIFILE\fR"
+Write the export to \fIFILE\fR (\fB\-\fR for standard output) and exit without
+starting ncdu. The file can be read later with \fBncdu \-f\fR.
+.TP
+.BR \-f ", " \-\-force
+Overwrite an existing \fB\-\-output\fR file.
+.TP
+.BR \-\-privilege " \fICMD\fR"
+Command used to reach \fBzfs\fR, for example \fBsudo\fR or \fBdoas\fR, or
+\fBnone\fR to require none. By default an unprivileged \fBzfs\fR is tried
+first and a privilege helper is only used if that fails.
+.TP
+.BR \-\-ncdu " \fIPATH\fR"
+The ncdu binary to run.
+.TP
+.BR \-h ", " \-\-help ", " \-V ", " \-\-version
+Show help or version.
+.SH ENVIRONMENT
+.TP
+.B ZFS_NCDU_AWK
+Path to \fIzfs\-ncdu.awk\fR. By default it is found relative to the executable.
+.TP
+.B ZFS_NCDU_PRIVILEGE
+Default for \fB\-\-privilege\fR.
+.TP
+.B NCDU
+Default for \fB\-\-ncdu\fR.
+.TP
+.B AWK
+awk implementation to use.
+.TP
+.B XDG_CACHE_HOME
+Where generated exports are cached, \fI~/.cache/zfs\-ncdu\fR by default.
+.SH ACCOUNTING NOTES
+For every dataset ZFS maintains
+.IP
+USED = USEDDS + USEDSNAP + USEDREFRESERV + USEDCHILD
+.PP
+and the generated tree reproduces that identity exactly: the totals ncdu shows
+equal the dataset's USED.
+.PP
+A snapshot's own USED counts only space unique to it. Space held jointly by
+two or more snapshots is charged to none of them, so listing snapshots alone
+would total less than USEDSNAP. The difference is reported as
+.IR "[shared between snapshots]" .
+.PP
+Pool level figures from \fBzpool list\fR differ from the sum of dataset USED,
+because raidz parity, padding and pool metadata are counted there but belong to
+no dataset. This tool reports dataset accounting, not pool geometry.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Error.
+.TP
+.B 2
+Usage error.
+.SH EXAMPLES
+.TP
+Browse every imported pool:
+.B zfs\-ncdu
+.TP
+Browse one dataset and its children:
+.B zfs\-ncdu tank/home
+.TP
+Save an export to read later, without opening ncdu:
+.B zfs\-ncdu \-o tank.ncdu tank && ncdu \-f tank.ncdu
+.SH SEE ALSO
+.BR ncdu (1),
+.BR zfs (8),
+.BR zfs-list (8),
+.BR zpool (8)
+.SH AUTHORS
+Johnneylee Jack Rollins.

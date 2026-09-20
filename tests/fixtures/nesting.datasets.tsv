@@ -1,0 +1,5 @@
+tank	3000	0	0	0	1.00
+tank/data	2000	1000	0	0	1.00
+tank/data/child	1000	1000	0	0	1.00
+tank/data-old	500	500	0	0	1.00
+tank/vol	500	400	0	100	1.00

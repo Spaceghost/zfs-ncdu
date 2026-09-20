@@ -1,0 +1,244 @@
+#!/bin/sh
+# zfs-ncdu - browse ZFS space accounting in ncdu.
+#
+# ncdu is not a library and this is not a reimplementation of it: the tool
+# renders ZFS dataset, snapshot and reservation accounting into ncdu's own JSON
+# export format and hands that to the real ncdu binary, so the interface is
+# genuinely ncdu's.
+#
+# Copyright (c) 2026 Johnneylee Jack Rollins. MIT licensed; see LICENSE.
+
+set -eu
+
+PROGRAM=zfs-ncdu
+VERSION=0.1.0
+
+usage() {
+	cat <<USAGE
+Usage: $PROGRAM [options] [dataset|pool ...]
+
+Render ZFS space accounting as an ncdu export and open it in ncdu.
+With no dataset arguments, every imported pool is included.
+
+Selection (following zfs list):
+  -d, --depth N        recurse at most N levels below each argument
+  -S, --no-snapshots   summarise snapshots per dataset instead of listing each
+
+Output (following ncdu):
+  -o, --output FILE    write the export to FILE ('-' for stdout) and exit
+                       without starting ncdu
+  -f, --force          overwrite an existing --output file
+
+Other:
+      --privilege CMD  command used to reach zfs ('none' to require none;
+                       default: auto-detect only if an unprivileged zfs fails)
+      --ncdu PATH      ncdu binary to run (default: first ncdu on PATH)
+  -h, --help           show this help
+  -V, --version        show version
+
+Environment:
+  ZFS_NCDU_AWK         path to zfs-ncdu.awk
+  ZFS_NCDU_PRIVILEGE   default for --privilege
+  NCDU                 default for --ncdu
+  AWK                  awk implementation to use
+  XDG_CACHE_HOME       where generated exports are cached
+
+Exit status: 0 on success, 1 on error, 2 on usage error.
+USAGE
+}
+
+die() {
+	printf '%s: %s\n' "$PROGRAM" "$*" >&2
+	exit 1
+}
+
+usage_error() {
+	printf '%s: %s\n' "$PROGRAM" "$*" >&2
+	printf "Try '%s --help'.\n" "$PROGRAM" >&2
+	exit 2
+}
+
+# Resolve this script's directory, following symlinks, so an installed copy
+# finds its awk library next to itself rather than at a compiled-in path.
+self_dir() {
+	_p=$1
+	_n=0
+	while [ -L "$_p" ]; do
+		_n=$((_n + 1))
+		[ "$_n" -lt 40 ] || die "symlink loop resolving $1"
+		_t=$(readlink "$_p")
+		case $_t in
+		/*) _p=$_t ;;
+		*) _p=$(dirname "$_p")/$_t ;;
+		esac
+	done
+	(cd "$(dirname "$_p")" && pwd -P)
+}
+
+find_awk_lib() {
+	if [ -n "${ZFS_NCDU_AWK:-}" ]; then
+		[ -r "$ZFS_NCDU_AWK" ] || die "ZFS_NCDU_AWK is not readable: $ZFS_NCDU_AWK"
+		printf '%s\n' "$ZFS_NCDU_AWK"
+		return 0
+	fi
+	_dir=$(self_dir "$0")
+	for _c in \
+		"$_dir/../lib/zfs-ncdu.awk" \
+		"$_dir/../share/$PROGRAM/zfs-ncdu.awk" \
+		"$_dir/zfs-ncdu.awk"; do
+		[ -r "$_c" ] && { (cd "$(dirname "$_c")" && printf '%s/%s\n' "$(pwd -P)" "$(basename "$_c")"); return 0; }
+	done
+	die "cannot find zfs-ncdu.awk (set ZFS_NCDU_AWK)"
+}
+
+depth=
+snapshots=1
+output=
+force=0
+privilege=${ZFS_NCDU_PRIVILEGE:-auto}
+ncdu_bin=${NCDU:-}
+awk_bin=${AWK:-awk}
+
+while [ $# -gt 0 ]; do
+	case $1 in
+	-h | --help) usage; exit 0 ;;
+	-V | --version) printf '%s %s\n' "$PROGRAM" "$VERSION"; exit 0 ;;
+	-d | --depth)
+		[ $# -ge 2 ] || usage_error "--depth requires an argument"
+		depth=$2; shift 2
+		case $depth in
+		'' | *[!0-9]*) usage_error "--depth must be a non-negative integer" ;;
+		esac
+		;;
+	-S | --no-snapshots) snapshots=0; shift ;;
+	-o | --output)
+		[ $# -ge 2 ] || usage_error "--output requires an argument"
+		output=$2; shift 2 ;;
+	-f | --force) force=1; shift ;;
+	--privilege)
+		[ $# -ge 2 ] || usage_error "--privilege requires an argument"
+		privilege=$2; shift 2 ;;
+	--ncdu)
+		[ $# -ge 2 ] || usage_error "--ncdu requires an argument"
+		ncdu_bin=$2; shift 2 ;;
+	--) shift; break ;;
+	-*) usage_error "unknown option: $1" ;;
+	*) break ;;
+	esac
+done
+
+command -v "$awk_bin" >/dev/null 2>&1 || die "no awk found (tried '$awk_bin')"
+AWK_LIB=$(find_awk_lib)
+
+# Reaching zfs: prefer running it unprivileged, since `zfs allow` delegation and
+# some platforms make that work. Only escalate when it actually fails.
+ZFS=zfs
+ZPOOL=zpool
+command -v zfs >/dev/null 2>&1 || die "zfs command not found"
+
+case $privilege in
+none) ;;
+auto)
+	if ! zfs list -H -o name >/dev/null 2>&1; then
+		for _c in doas sudo; do
+			if command -v "$_c" >/dev/null 2>&1; then
+				ZFS="$_c zfs"; ZPOOL="$_c zpool"; break
+			fi
+		done
+	fi
+	;;
+*)
+	command -v "${privilege%% *}" >/dev/null 2>&1 ||
+		die "privilege command not found: $privilege"
+	ZFS="$privilege zfs"; ZPOOL="$privilege zpool"
+	;;
+esac
+
+$ZFS list -H -o name >/dev/null 2>&1 ||
+	die "cannot run zfs (try --privilege sudo, or 'zfs allow' delegation)"
+
+if [ $# -eq 0 ]; then
+	set -- $($ZPOOL list -H -o name)
+	[ $# -gt 0 ] || die "no pools imported"
+fi
+
+for t in "$@"; do
+	$ZFS list -H -o name "$t" >/dev/null 2>&1 || die "no such dataset: $t"
+done
+
+TMPDIR_RUN=$(mktemp -d "${TMPDIR:-/tmp}/$PROGRAM.XXXXXX") || die "cannot create temporary directory"
+cleanup() { rm -rf "$TMPDIR_RUN"; }
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
+
+sets=$TMPDIR_RUN/datasets.tsv
+snaps=$TMPDIR_RUN/snapshots.tsv
+: > "$sets"
+: > "$snaps"
+
+depth_args=""
+[ -n "$depth" ] && depth_args="-d $depth"
+
+for t in "$@"; do
+	# shellcheck disable=SC2086 # depth_args is intentionally word-split
+	$ZFS list -r $depth_args -H -p \
+		-o name,used,usedds,usedsnap,usedrefreserv,compressratio "$t" >> "$sets"
+	if [ "$snapshots" -eq 1 ]; then
+		# shellcheck disable=SC2086
+		$ZFS list -t snapshot -r $depth_args -H -p \
+			-o name,used,compressratio "$t" >> "$snaps" 2>/dev/null || :
+	fi
+done
+
+[ -s "$sets" ] || die "no datasets to report"
+
+# Sort so each dataset is immediately followed by its descendants. Plain sort
+# would not do: '-' sorts before '/', so pool/data-old would land between
+# pool/data and pool/data/child and break the nesting. Sorting on the name with
+# separators replaced by \001 (below every name character) restores the order.
+sorted=$TMPDIR_RUN/sorted.tsv
+"$awk_bin" -F'\t' '{ k = $1; gsub(/\//, "\001", k); print k "\t" $0 }' "$sets" |
+	LC_ALL=C sort |
+	cut -f2- > "$sorted"
+
+rootname=zfs
+[ $# -eq 1 ] && rootname=$1
+
+if [ "$output" = "-" ]; then
+	out=/dev/stdout
+elif [ -n "$output" ]; then
+	if [ -e "$output" ] && [ "$force" -ne 1 ]; then
+		die "$output exists (use --force to overwrite)"
+	fi
+	out=$output
+else
+	cache=${XDG_CACHE_HOME:-${HOME:?HOME is not set}/.cache}/$PROGRAM
+	mkdir -p "$cache" || die "cannot create cache directory: $cache"
+	out=$cache/$(printf '%s' "$*" | tr -cs 'A-Za-z0-9_.-' '_').ncdu
+fi
+
+"$awk_bin" \
+	-v ts="$(date +%s)" \
+	-v version="$VERSION" \
+	-v snapfile="$snaps" \
+	-v rootname="$rootname" \
+	-f "$AWK_LIB" "$sorted" > "$TMPDIR_RUN/export.ncdu"
+
+if [ "$out" = /dev/stdout ]; then
+	cat "$TMPDIR_RUN/export.ncdu"
+	exit 0
+fi
+
+cat "$TMPDIR_RUN/export.ncdu" > "$out" || die "cannot write $out"
+[ -n "$output" ] && exit 0
+
+if [ -z "$ncdu_bin" ]; then
+	command -v ncdu >/dev/null 2>&1 ||
+		die "ncdu not found; use --output to write an export instead"
+	ncdu_bin=ncdu
+fi
+
+cleanup
+trap - EXIT INT TERM
+exec "$ncdu_bin" -f "$out"
