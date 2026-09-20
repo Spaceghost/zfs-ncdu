@@ -128,11 +128,17 @@ jobs:
           name: packages
           path: dist/
 
-      - name: Attach to the release
+      - name: Publish the release with its packages
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+        run: |
+          set -eux
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes \
+              --title "$GITHUB_REF_NAME"
+          fi
+          gh release upload "$GITHUB_REF_NAME" dist/* --clobber
 
   nix:
     name: nix build
@@ -166,8 +172,15 @@ jobs:
         with:
           name: icons
           path: dist/icons/
-      - name: Attach to the release
+      - name: Attach the icons to the release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" dist/icons/* --clobber
+        run: |
+          set -eux
+          # The packages job creates the release; wait rather than race it.
+          for _ in $(seq 1 30); do
+            gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 && break
+            sleep 10
+          done
+          gh release upload "$GITHUB_REF_NAME" dist/icons/* --clobber
